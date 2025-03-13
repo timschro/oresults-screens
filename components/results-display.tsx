@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Timer, Loader2, ZoomIn } from "lucide-react"
+import { Loader2, ZoomIn, Plus, Minus, X } from "lucide-react"
 import { displayConfig } from "@/config/displays"
 import { MonitorSelector } from "./monitor-selector"
 import type { MonitorConfig } from "@/types/config"
@@ -11,7 +11,10 @@ const SCROLL_DURATION = 15000 // 15 seconds to scroll
 const PAUSE_DURATION = 5000 // 5 seconds pause at bottom
 const INITIAL_PAUSE = 3000 // 3 seconds pause after loading
 const WEBSITE_DISPLAY_TIME = SCROLL_DURATION + PAUSE_DURATION
-const SCROLL_STEP = 0.5 // pixels per frame
+const SCROLL_STEP = 1.5 // pixels per frame - increased for better visibility
+const MIN_ZOOM = 1
+const MAX_ZOOM = 4
+const ZOOM_STEP = 0.25
 
 const getClassFromUrl = (url: string) => {
   try {
@@ -46,60 +49,92 @@ export default function ResultsDisplay() {
   const [viewportHeight, setViewportHeight] = useState(0)
   const [timeRemaining, setTimeRemaining] = useState(WEBSITE_DISPLAY_TIME)
   const [isActive, setIsActive] = useState(true)
-  const [contentHeight, setContentHeight] = useState(0)
-  const [clientHeight, setClientHeight] = useState(0)
   const [iframeHeight, setIframeHeight] = useState("100%")
   const [iframeReady, setIframeReady] = useState(false)
-  const [currentZoom, setCurrentZoom] = useState(displayConfig.defaultZoom || 2)
+  const [contentTallerThanViewport, setContentTallerThanViewport] = useState(false)
+  const [iframeKey, setIframeKey] = useState(0) // Key to force iframe reload
+  const [zoomControlsVisible, setZoomControlsVisible] = useState(false)
+
+  // Initialize zoom from localStorage or use default
+  const [currentZoom, setCurrentZoom] = useState(() => {
+    if (typeof window !== "undefined") {
+      const savedZoom = localStorage.getItem("resultsDisplayZoom")
+      return savedZoom ? Number.parseFloat(savedZoom) : displayConfig.defaultZoom || 2
+    }
+    return displayConfig.defaultZoom || 2
+  })
+
+  // Save zoom to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("resultsDisplayZoom", currentZoom.toString())
+    }
+  }, [currentZoom])
 
   // Get current URL
   const currentUrl = currentMonitor.urls[currentIndex]
 
-  // Get zoom factor for current URL
-  // const getZoomFactor = useCallback((monitor: MonitorConfig, url: string): number => {
-  //   // Check if there's a specific zoom factor for this URL
-  //   if (monitor.zoomFactors && monitor.zoomFactors[url] !== undefined) {
-  //     return monitor.zoomFactors[url]
-  //   }
-  //   // Otherwise use the default zoom
-  //   return displayConfig.defaultZoom || 2
-  // }, [])
+  // Function to toggle zoom controls visibility
+  const toggleZoomControls = useCallback(() => {
+    setZoomControlsVisible((prev) => !prev)
+  }, [])
+
+  // Function to adjust zoom
+  const adjustZoom = useCallback((increment: boolean) => {
+    setCurrentZoom((prevZoom) => {
+      const newZoom = increment ? Math.min(MAX_ZOOM, prevZoom + ZOOM_STEP) : Math.max(MIN_ZOOM, prevZoom - ZOOM_STEP)
+      return Number.parseFloat(newZoom.toFixed(2)) // Ensure we don't get floating point errors
+    })
+
+    // Force iframe reload when zoom changes
+    setIframeReady(false)
+    setIframeKey((prev) => prev + 1)
+  }, [])
+
+  // Function to get the height of the results table
+  const getResultsTableHeight = useCallback(
+    (iframeDocument: Document): number => {
+      try {
+        // Find the table with class "results"
+        const resultsTable = iframeDocument.querySelector("table.results")
+        if (resultsTable) {
+          // Get the height of the table (this already includes zoom effects)
+          const tableHeight = resultsTable.getBoundingClientRect().height
+          console.log(`Results table height: ${tableHeight}px (already includes zoom factor of ${currentZoom}x)`)
+          return tableHeight
+        } else {
+          console.warn("No table with class 'results' found in iframe")
+        }
+      } catch (error) {
+        console.error("Error getting results table height:", error)
+      }
+      return 0
+    },
+    [currentZoom],
+  )
 
   // Get root div reference on mount
   useEffect(() => {
     const rootElement = document.getElementById("root")
     if (rootElement && rootElement.firstElementChild instanceof HTMLDivElement) {
       rootDivRef.current = rootElement.firstElementChild
-      setViewportHeight(rootDivRef.current.clientHeight)
+      setViewportHeight(rootElement.firstElementChild.clientHeight)
+    } else {
+      // Fallback to window innerHeight if root element not found
+      setViewportHeight(window.innerHeight)
     }
-  }, [])
 
-  // Function to get the height of the results table
-  const getResultsTableHeight = useCallback((iframeDocument: Document): number => {
-    try {
-      // Find the table with class "results"
-      const resultsTable = iframeDocument.querySelector("table.results")
-      if (resultsTable) {
-        // Get the height of the table
-        const tableHeight = resultsTable.getBoundingClientRect().height
-        console.log("Results table height:", tableHeight)
-        return tableHeight
+    // Add resize listener
+    const handleResize = () => {
+      if (rootDivRef.current) {
+        setViewportHeight(rootDivRef.current.clientHeight)
+      } else {
+        setViewportHeight(window.innerHeight)
       }
-    } catch (error) {
-      console.error("Error getting results table height:", error)
     }
-    return 0
-  }, [])
 
-  // Function to manually force scrolling
-  const forceScrolling = useCallback(() => {
-    if (wrapperRef.current) {
-      const wrapper = wrapperRef.current
-
-      // Force scrolling regardless of height calculations
-      console.log("Forcing scroll animation")
-      setIsScrolling(true)
-    }
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
   }, [])
 
   // Handle iframe load and content measurement
@@ -108,55 +143,14 @@ export default function ResultsDisplay() {
     if (wrapperRef.current) {
       wrapperRef.current.scrollTop = 0
       setIsScrolling(false)
+      setContentTallerThanViewport(false)
       setIframeReady(false) // Hide iframe content until manipulations are done
-
-      // Update zoom factor for the current URL
-      // const zoomFactor = getZoomFactor(currentMonitor, currentUrl)
-      // setCurrentZoom(zoomFactor)
-      // console.log(`Setting zoom factor to ${zoomFactor} for URL: ${currentUrl}`)
-
-      // Wait for content to be fully loaded
-      setTimeout(() => {
-        try {
-          if (wrapperRef.current && viewportHeight > 0) {
-            const wrapper = wrapperRef.current
-            const contentHeight = wrapper.scrollHeight
-            const clientHeight = wrapper.clientHeight
-            const scrollableHeight = contentHeight - clientHeight
-
-            console.log("Scroll measurement:", {
-              contentHeight,
-              clientHeight,
-              scrollableHeight,
-              viewportHeight,
-              currentZoom,
-            })
-
-            // Enable scrolling if content is taller than viewport
-            if (scrollableHeight > 0) {
-              console.log("Enabling scroll animation")
-              setIsScrolling(true)
-            } else {
-              console.log("No scroll needed")
-            }
-          }
-        } catch (error) {
-          console.error("Error measuring content:", error)
-          // Check if it's a SecurityError
-          if (error instanceof DOMException && error.name === "SecurityError") {
-            console.warn("SecurityError: Cannot access iframe content due to same-origin policy. Disabling scrolling.")
-            setIsScrolling(false)
-          } else {
-            setIsScrolling(false)
-          }
-        }
-      }, INITIAL_PAUSE)
     }
-  }, [currentMonitor, currentUrl, viewportHeight, currentZoom])
+  }, [])
 
   // Handle scrolling animation
   const startScrolling = useCallback(() => {
-    if (!wrapperRef.current) return
+    if (!wrapperRef.current || !contentTallerThanViewport) return
 
     const wrapper = wrapperRef.current
     let startTime: number | null = null
@@ -206,13 +200,13 @@ export default function ResultsDisplay() {
       }
       clearTimeout(pauseTimeout)
     }
-  }, [isScrolling, currentZoom])
+  }, [isScrolling, currentZoom, contentTallerThanViewport])
 
   // Clean up scroll animation on unmount or when scrolling stops
   useEffect(() => {
     let cleanup: (() => void) | undefined
 
-    if (isScrolling) {
+    if (isScrolling && contentTallerThanViewport) {
       console.log("Starting scroll animation")
       cleanup = startScrolling()
     } else if (scrollAnimationRef.current) {
@@ -226,7 +220,7 @@ export default function ResultsDisplay() {
         cancelAnimationFrame(scrollAnimationRef.current)
       }
     }
-  }, [isScrolling, startScrolling])
+  }, [isScrolling, startScrolling, contentTallerThanViewport])
 
   // Fetch page title
   const fetchPageTitle = useCallback(async (url: string) => {
@@ -267,13 +261,11 @@ export default function ResultsDisplay() {
       setCurrentMonitor(monitor)
       setCurrentIndex(0)
       setIsScrolling(false)
+      setContentTallerThanViewport(false)
       setTimeRemaining(WEBSITE_DISPLAY_TIME)
       setIsActive(true)
       setIframeReady(false) // Hide iframe when changing monitor
-
-      // Update zoom factor for the first URL
-      // const zoomFactor = getZoomFactor(monitor, monitor.urls[0])
-      // setCurrentZoom(zoomFactor)
+      setIframeKey((prev) => prev + 1) // Force iframe reload
 
       if (wrapperRef.current) {
         wrapperRef.current.scrollTop = 0
@@ -294,10 +286,6 @@ export default function ResultsDisplay() {
             setCurrentIndex((prevIndex) => {
               const nextIndex = (prevIndex + 1) % currentMonitor.urls.length
               const nextUrl = currentMonitor.urls[nextIndex]
-
-              // Update zoom factor for the next URL
-              // const zoomFactor = getZoomFactor(currentMonitor, nextUrl)
-              // setCurrentZoom(zoomFactor)
 
               // Fetch the next page's title
               fetchPageTitle(nextUrl)
@@ -330,6 +318,8 @@ export default function ResultsDisplay() {
   useEffect(() => {
     // Reset iframe ready state when URL changes
     setIframeReady(false)
+    setIsScrolling(false)
+    setContentTallerThanViewport(false)
 
     // Try to modify iframe content after a short delay to ensure it's loaded
     const modifyIframeContent = () => {
@@ -412,22 +402,42 @@ export default function ResultsDisplay() {
               bodyElement.style.paddingBottom = "100px"
 
               console.log(`Applied zoom factor of ${currentZoom} to iframe content`)
+
+              // Hide scrollbars in the iframe content
+              const hideScrollbarsStyle = iframeDocument.createElement("style")
+              hideScrollbarsStyle.textContent = `
+                html, body, div, iframe {
+                  scrollbar-width: none !important;
+                  -ms-overflow-style: none !important;
+                }
+                
+                ::-webkit-scrollbar {
+                  display: none !important;
+                  width: 0 !important;
+                  height: 0 !important;
+                }
+              `
+              iframeDocument.head.appendChild(hideScrollbarsStyle)
+              console.log("Added CSS to hide scrollbars in iframe content")
             }
 
             // Get the height of the results table
             const tableHeight = getResultsTableHeight(iframeDocument)
 
             if (tableHeight > 0) {
-              // Calculate the scaled height and add some buffer
-              const scaledHeight = tableHeight * currentZoom + 200 // Add 200px buffer
-              console.log("Setting iframe height to:", scaledHeight)
-              setIframeHeight(`${scaledHeight}px`)
+              // Add some buffer to the height but don't multiply by zoom again
+              const adjustedHeight = tableHeight + 200 // Add 200px buffer
+              console.log("Setting iframe height to:", adjustedHeight)
+              setIframeHeight(`${adjustedHeight}px`)
 
-              // Check if the content is taller than the viewport
-              if (scaledHeight > (viewportHeight || window.innerHeight)) {
-                console.log("Content is taller than viewport, enabling scrolling")
-                forceScrolling()
-              }
+              // SIMPLIFIED LOGIC: Only enable scrolling if the table height exceeds viewport height
+              const isTallerThanViewport = adjustedHeight > viewportHeight
+              console.log(
+                `Content height check: ${adjustedHeight}px vs viewport ${viewportHeight}px, taller: ${isTallerThanViewport}`,
+              )
+
+              setContentTallerThanViewport(isTallerThanViewport)
+              setIsScrolling(isTallerThanViewport)
             }
 
             // Show the iframe content now that manipulations are complete
@@ -452,24 +462,101 @@ export default function ResultsDisplay() {
       setTimeout(modifyIframeContent, 2000),
       setTimeout(modifyIframeContent, 3000),
       setTimeout(() => {
-        // Force scrolling after all attempts and ensure iframe is visible
-        forceScrolling()
-        setIframeReady(true) // Make sure iframe is visible even if manipulations failed
+        // Force iframe to be visible even if manipulations failed
+        setIframeReady(true)
       }, 4000),
     ]
 
     return () => {
       timers.forEach((timer) => clearTimeout(timer))
     }
-  }, [currentMonitor.urls[currentIndex], forceScrolling, getResultsTableHeight, viewportHeight, currentZoom])
+  }, [currentMonitor.urls[currentIndex], getResultsTableHeight, viewportHeight, currentZoom, iframeKey])
+
+  // Add global scrollbar hiding styles
+  useEffect(() => {
+    // Create a style element to hide scrollbars globally
+    const styleEl = document.createElement("style")
+    styleEl.textContent = `
+      html, body, div, iframe {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      
+      ::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+    `
+    document.head.appendChild(styleEl)
+
+    return () => {
+      document.head.removeChild(styleEl)
+    }
+  }, [])
 
   return (
     <>
       <MonitorSelector selectedMonitor={selectedMonitor} onSelectMonitor={setSelectedMonitor} />
+
+      {/* Zoom controls in the lower left corner, toggled by clicking */}
+      <div className="fixed left-4 bottom-4 z-50">
+        {/* Small indicator that's always visible */}
+        {!zoomControlsVisible && (
+          <button
+            onClick={toggleZoomControls}
+            className="bg-slate-800/60 backdrop-blur-sm rounded-full p-2 shadow-lg cursor-pointer hover:bg-slate-800/80 transition-colors"
+            aria-label="Open zoom controls"
+          >
+            <ZoomIn className="h-5 w-5 text-white opacity-70" />
+          </button>
+        )}
+
+        {/* Expanded zoom controls */}
+        {zoomControlsVisible && (
+          <div className="bg-slate-800/90 backdrop-blur-sm rounded-lg shadow-lg p-3 transition-all duration-200">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-slate-300">Zoom Controls</span>
+              <button
+                onClick={toggleZoomControls}
+                className="text-slate-400 hover:text-white transition-colors"
+                aria-label="Close zoom controls"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => adjustZoom(true)}
+                className="w-10 h-10 flex items-center justify-center rounded-md bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentZoom >= MAX_ZOOM}
+                aria-label="Zoom in"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+
+              <div className="bg-slate-700 rounded-md px-2 py-1 flex items-center justify-center w-full">
+                <span className="text-sm text-white font-medium">{currentZoom.toFixed(2)}x</span>
+              </div>
+
+              <button
+                onClick={() => adjustZoom(false)}
+                className="w-10 h-10 flex items-center justify-center rounded-md bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentZoom <= MIN_ZOOM}
+                aria-label="Zoom out"
+              >
+                <Minus className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <Card className="w-full bg-slate-900">
         <CardHeader className="bg-slate-800 py-2 border-b border-slate-700">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl text-center text-white flex-1">
+            <CardTitle className="text-xl text-white">
               {isLoading ? (
                 "Loading..."
               ) : (
@@ -479,20 +566,10 @@ export default function ResultsDisplay() {
                       ? ` (Strecke ${getLegFromUrl(currentMonitor.urls[currentIndex])})`
                       : ""
                   }` || "No class specified"}
-                  <div className="text-xs text-slate-400 mt-1 break-all">URL: {currentMonitor.urls[currentIndex]}</div>
                 </>
               )}
             </CardTitle>
-            <div className="flex items-center gap-2 min-w-[150px]">
-              <div className="flex items-center mr-3">
-                <ZoomIn className="h-4 w-4 text-slate-400 mr-1" />
-                <span className="text-sm text-slate-400">{currentZoom}x</span>
-              </div>
-              <Timer className="h-4 w-4 text-slate-400" />
-              <span className="text-sm text-slate-400">
-                {Math.ceil(timeRemaining / 1000)}s / {WEBSITE_DISPLAY_TIME / 1000}s
-              </span>
-            </div>
+            <div className="text-xs text-slate-400">{contentTallerThanViewport ? "Auto-scrolling" : "Static view"}</div>
           </div>
           <div className="h-1 mt-2 bg-slate-700 rounded-full overflow-hidden">
             <div
@@ -509,6 +586,8 @@ export default function ResultsDisplay() {
             style={{
               height: viewportHeight ? `${viewportHeight}px` : "100vh",
               maxHeight: viewportHeight ? `${viewportHeight}px` : "100vh",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
             }}
           >
             {/* Loading overlay */}
@@ -523,7 +602,7 @@ export default function ResultsDisplay() {
 
             <iframe
               ref={iframeRef}
-              key={`${currentMonitor.id}-${currentIndex}`}
+              key={`${currentMonitor.id}-${currentIndex}-${iframeKey}`}
               src={currentMonitor.urls[currentIndex]}
               className={`w-full border-none scrollbar-hide transition-opacity duration-300 ${iframeReady ? "opacity-100" : "opacity-0"}`}
               style={{
