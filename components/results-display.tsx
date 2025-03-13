@@ -7,14 +7,16 @@ import { displayConfig } from "@/config/displays"
 import { MonitorSelector } from "./monitor-selector"
 import type { MonitorConfig } from "@/types/config"
 
-const SCROLL_DURATION = 15000 // 15 seconds to scroll
+// Remove the SCROLL_DURATION constant and add these constants instead:
+const BASE_SCROLL_SPEED = 100 // pixels per second
+const MIN_SCROLL_DURATION = 10000 // minimum 10 seconds for scrolling
+const MAX_SCROLL_DURATION = 60000 // maximum 60 seconds for scrolling
+const STATIC_DISPLAY_TIME = 15000 // 15 seconds for static content
 const PAUSE_DURATION = 5000 // 5 seconds pause at bottom
-const INITIAL_PAUSE = 3000 // 3 seconds pause after loading
-const WEBSITE_DISPLAY_TIME = SCROLL_DURATION + PAUSE_DURATION
-const SCROLL_STEP = 1.5 // pixels per frame - increased for better visibility
 const MIN_ZOOM = 1
 const MAX_ZOOM = 4
 const ZOOM_STEP = 0.25
+const SCROLL_STEP = 1 // Define the scroll step
 
 const getClassFromUrl = (url: string) => {
   try {
@@ -47,13 +49,16 @@ export default function ResultsDisplay() {
   const [isLoading, setIsLoading] = useState(true)
   const [isScrolling, setIsScrolling] = useState(false)
   const [viewportHeight, setViewportHeight] = useState(0)
-  const [timeRemaining, setTimeRemaining] = useState(WEBSITE_DISPLAY_TIME)
+  const [timeRemaining, setTimeRemaining] = useState(STATIC_DISPLAY_TIME)
   const [isActive, setIsActive] = useState(true)
   const [iframeHeight, setIframeHeight] = useState("100%")
   const [iframeReady, setIframeReady] = useState(false)
   const [contentTallerThanViewport, setContentTallerThanViewport] = useState(false)
   const [iframeKey, setIframeKey] = useState(0) // Key to force iframe reload
   const [zoomControlsVisible, setZoomControlsVisible] = useState(false)
+
+  const [scrollDuration, setScrollDuration] = useState(MIN_SCROLL_DURATION)
+  const websiteDisplayTime = contentTallerThanViewport ? scrollDuration + PAUSE_DURATION : STATIC_DISPLAY_TIME
 
   // Initialize zoom from localStorage or use default
   const [currentZoom, setCurrentZoom] = useState(() => {
@@ -156,8 +161,18 @@ export default function ResultsDisplay() {
     let startTime: number | null = null
     let pauseTimeout: NodeJS.Timeout
 
-    // Adjust scroll step based on zoom factor
-    const adjustedScrollStep = SCROLL_STEP / currentZoom
+    // Calculate total scroll distance
+    const totalScrollDistance = wrapper.scrollHeight - wrapper.clientHeight
+
+    // Calculate how many steps we need based on the scroll duration
+    const totalSteps = scrollDuration / (1000 / 60) // 60fps
+
+    // Calculate step size to complete in the given duration
+    const adjustedScrollStep = totalScrollDistance / totalSteps
+
+    console.log(
+      `Scroll info: distance=${totalScrollDistance}px, duration=${scrollDuration / 1000}s, step=${adjustedScrollStep}px`,
+    )
 
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp
@@ -200,7 +215,7 @@ export default function ResultsDisplay() {
       }
       clearTimeout(pauseTimeout)
     }
-  }, [isScrolling, currentZoom, contentTallerThanViewport])
+  }, [isScrolling, contentTallerThanViewport, scrollDuration])
 
   // Clean up scroll animation on unmount or when scrolling stops
   useEffect(() => {
@@ -221,6 +236,13 @@ export default function ResultsDisplay() {
       }
     }
   }, [isScrolling, startScrolling, contentTallerThanViewport])
+
+  // Update timeRemaining when contentTallerThanViewport changes
+  useEffect(() => {
+    // Reset the timer when auto-scrolling status changes
+    setTimeRemaining(websiteDisplayTime)
+    console.log(`Display time set to ${websiteDisplayTime / 1000}s (auto-scrolling: ${contentTallerThanViewport})`)
+  }, [contentTallerThanViewport, websiteDisplayTime])
 
   // Fetch page title
   const fetchPageTitle = useCallback(async (url: string) => {
@@ -262,7 +284,7 @@ export default function ResultsDisplay() {
       setCurrentIndex(0)
       setIsScrolling(false)
       setContentTallerThanViewport(false)
-      setTimeRemaining(WEBSITE_DISPLAY_TIME)
+      setTimeRemaining(STATIC_DISPLAY_TIME) // Start with static time, will be updated if needed
       setIsActive(true)
       setIframeReady(false) // Hide iframe when changing monitor
       setIframeKey((prev) => prev + 1) // Force iframe reload
@@ -291,8 +313,8 @@ export default function ResultsDisplay() {
               fetchPageTitle(nextUrl)
               return nextIndex
             })
-            // Reset timer
-            return WEBSITE_DISPLAY_TIME
+            // Reset timer based on current auto-scrolling status
+            return websiteDisplayTime
           }
           return prevTime - 1000
         })
@@ -304,15 +326,15 @@ export default function ResultsDisplay() {
         clearInterval(intervalId)
       }
     }
-  }, [isActive, isLoading, currentMonitor, fetchPageTitle])
+  }, [isActive, isLoading, currentMonitor, fetchPageTitle, websiteDisplayTime])
 
   // Update progress bar
   useEffect(() => {
     if (progressRef.current) {
-      const progress = (timeRemaining / WEBSITE_DISPLAY_TIME) * 100
+      const progress = (timeRemaining / websiteDisplayTime) * 100
       progressRef.current.style.width = `${100 - progress}%`
     }
-  }, [timeRemaining])
+  }, [timeRemaining, websiteDisplayTime])
 
   // Add this after the other useEffects
   useEffect(() => {
@@ -435,6 +457,23 @@ export default function ResultsDisplay() {
               console.log(
                 `Content height check: ${adjustedHeight}px vs viewport ${viewportHeight}px, taller: ${isTallerThanViewport}`,
               )
+
+              // Calculate dynamic scroll duration based on content height if scrolling is needed
+              if (isTallerThanViewport) {
+                // Calculate how much we need to scroll (total height minus viewport)
+                const scrollDistance = adjustedHeight - viewportHeight
+
+                // Calculate duration based on our base scroll speed
+                const calculatedDuration = (scrollDistance / BASE_SCROLL_SPEED) * 1000
+
+                // Clamp the duration between min and max values
+                const clampedDuration = Math.max(MIN_SCROLL_DURATION, Math.min(MAX_SCROLL_DURATION, calculatedDuration))
+
+                console.log(
+                  `Dynamic scroll duration: ${clampedDuration / 1000}s for ${scrollDistance}px at ${BASE_SCROLL_SPEED}px/s`,
+                )
+                setScrollDuration(clampedDuration)
+              }
 
               setContentTallerThanViewport(isTallerThanViewport)
               setIsScrolling(isTallerThanViewport)
@@ -569,7 +608,12 @@ export default function ResultsDisplay() {
                 </>
               )}
             </CardTitle>
-            <div className="text-xs text-slate-400">{contentTallerThanViewport ? "Auto-scrolling" : "Static view"}</div>
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-slate-400">
+                {contentTallerThanViewport ? `Auto-scrolling (${Math.round(scrollDuration / 1000)}s)` : "Static view"}
+              </div>
+              <div className="text-xs text-slate-500">{Math.ceil(timeRemaining / 1000)}s</div>
+            </div>
           </div>
           <div className="h-1 mt-2 bg-slate-700 rounded-full overflow-hidden">
             <div
