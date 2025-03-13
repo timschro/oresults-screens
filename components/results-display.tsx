@@ -564,10 +564,11 @@ export default function ResultsDisplay() {
       setTimeout(modifyIframeContent, 1000),
       setTimeout(modifyIframeContent, 2000),
       setTimeout(modifyIframeContent, 3000),
+      setTimeout(modifyIframeContent, 4000),
       setTimeout(() => {
         // Force iframe to be visible even if manipulations failed
         setIframeReady(true)
-      }, 4000),
+      }, 5000),
     ]
 
     return () => {
