@@ -355,61 +355,125 @@ export default function ResultsDisplay() {
             const tableHeaders = iframeDocument.querySelectorAll("th, td")
             tableHeaders.forEach((header) => {
               if (header.textContent === "Finish") {
-                header.textContent = "Ziel"
-                console.log('Replaced "Finish" with "Ziel" in table header')
+                header.textContent = "Zeit"
+                console.log('Replaced "Finish" with "Zeit" in table header')
               }
             })
 
-            // Find and hide the "Bib" and "start" columns
+            // Find and process columns in tables
             const tables = iframeDocument.querySelectorAll("table")
             tables.forEach((table) => {
               const headers = table.querySelectorAll("th")
               let bibColumnIndex = -1
               let startColumnIndex = -1
+              let clubColumnIndex = -1
+              let finishColumnIndex = -1
+              const columnsToHide = new Set<number>()
+              const columnsWithTeamClass = new Set<number>()
 
-              // Find the indices of the "Bib" and "start" columns
+              // Debug all headers
+              console.log(
+                "Table headers found:",
+                Array.from(headers).map((h, i) => `${i}: "${h.textContent?.trim()}"`),
+              )
+
+              // First, identify columns that contain divs with class "results-team"
+              const rows = table.querySelectorAll("tr")
+              rows.forEach((row) => {
+                const cells = row.querySelectorAll("td")
+                cells.forEach((cell, cellIndex) => {
+                  if (cell.querySelector("div.results-team")) {
+                    columnsWithTeamClass.add(cellIndex)
+                    console.log(`Found cell with div.results-team in column ${cellIndex}`)
+                  }
+                })
+              })
+
+              // Find the indices of the columns
               headers.forEach((header, index) => {
-                const headerText = header.textContent?.trim().toLowerCase() || ""
-                if (headerText === "bib") {
+                const headerText = (header.textContent?.trim() || "").toLowerCase()
+
+                // Always hide "bib" and "start" columns, unless they contain team class
+                if (headerText === "bib" && !columnsWithTeamClass.has(index)) {
                   bibColumnIndex = index
+                  columnsToHide.add(index)
                   console.log('Found "Bib" column at index:', bibColumnIndex)
                 }
-                if (headerText === "start") {
+                if (headerText === "start" && !columnsWithTeamClass.has(index)) {
                   startColumnIndex = index
+                  columnsToHide.add(index)
                   console.log('Found "start" column at index:', startColumnIndex)
+                }
+
+                // Find "Club" and "Finish"/"Ziel" columns for potential removal of columns between them
+                if (headerText === "club") {
+                  clubColumnIndex = index
+                  console.log('Found "Club" column at index:', clubColumnIndex)
+                }
+                if (headerText === "finish" || headerText === "ziel") {
+                  finishColumnIndex = index
+                  console.log('Found "Finish/Ziel" column at index:', finishColumnIndex)
+                }
+              })
+
+              // If configured to remove columns between Club and Finish, and both columns are found
+              if (
+                displayConfig.removeColumnsBetweenClubAndFinish &&
+                clubColumnIndex !== -1 &&
+                finishColumnIndex !== -1
+              ) {
+                // Make sure Club comes before Finish
+                if (clubColumnIndex < finishColumnIndex) {
+                  // Add all columns between Club and Finish to the hide set
+                  // Start from clubColumnIndex + 1 to preserve the Club column itself
+                  for (let i = clubColumnIndex + 1; i < finishColumnIndex; i++) {
+                    // Don't hide columns with team class
+                    if (!columnsWithTeamClass.has(i)) {
+                      columnsToHide.add(i)
+                      console.log(`Adding column at index ${i} to hide (between Club and Finish)`)
+                    } else {
+                      console.log(`Preserving column at index ${i} because it contains div.results-team`)
+                    }
+                  }
+                }
+              }
+
+              // IMPORTANT: Make sure we're not hiding the Club column
+              if (clubColumnIndex !== -1) {
+                columnsToHide.delete(clubColumnIndex)
+                console.log(`Ensuring Club column (index ${clubColumnIndex}) is NOT hidden`)
+              }
+
+              // Remove any columns with team class from the hide set
+              columnsWithTeamClass.forEach((index) => {
+                if (columnsToHide.has(index)) {
+                  columnsToHide.delete(index)
+                  console.log(`Removing column ${index} from hide set because it contains div.results-team`)
                 }
               })
 
               // Create a style element to hide the columns
-              const styleEl = iframeDocument.createElement("style")
-              let cssRules = ""
+              if (columnsToHide.size > 0) {
+                const styleEl = iframeDocument.createElement("style")
+                let cssRules = ""
 
-              // Add CSS for "Bib" column if found
-              if (bibColumnIndex !== -1) {
-                cssRules += `
-                  table tr th:nth-child(${bibColumnIndex + 1}),
-                  table tr td:nth-child(${bibColumnIndex + 1}) {
-                    display: none !important;
-                  }
-                `
-                console.log('Added CSS to hide "Bib" column')
-              }
+                // Generate CSS rules for all columns to hide
+                columnsToHide.forEach((index) => {
+                  cssRules += `
+                    table tr th:nth-child(${index + 1}),
+                    table tr td:nth-child(${index + 1}) {
+                      display: none !important;
+                    }
+                  `
+                })
 
-              // Add CSS for "start" column if found
-              if (startColumnIndex !== -1) {
-                cssRules += `
-                  table tr th:nth-child(${startColumnIndex + 1}),
-                  table tr td:nth-child(${startColumnIndex + 1}) {
-                    display: none !important;
-                  }
-                `
-                console.log('Added CSS to hide "start" column')
-              }
-
-              // Apply the CSS if we found any columns to hide
-              if (cssRules) {
+                // Apply the CSS
                 styleEl.textContent = cssRules
                 iframeDocument.head.appendChild(styleEl)
+                console.log(
+                  `Added CSS to hide ${columnsToHide.size} columns:`,
+                  Array.from(columnsToHide).sort((a, b) => a - b),
+                )
               }
             })
 

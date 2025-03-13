@@ -2,6 +2,7 @@ import type { DisplayConfig } from "@/types/config"
 
 export const displayConfig: DisplayConfig = {
   defaultZoom: 2, // Default zoom factor of 2 for all content
+  removeColumnsBetweenClubAndFinish: true, // Remove columns between Club and Finish by default
   monitors: [
     {
       id: "monitor-1",
