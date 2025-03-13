@@ -410,9 +410,9 @@ export default function ResultsDisplay() {
                   clubColumnIndex = index
                   console.log('Found "Club" column at index:', clubColumnIndex)
                 }
-                if (headerText === "finish" || headerText === "ziel") {
+                if (headerText === "finish" || headerText === "zeit") {
                   finishColumnIndex = index
-                  console.log('Found "Finish/Ziel" column at index:', finishColumnIndex)
+                  console.log('Found "Finish/zeit" column at index:', finishColumnIndex)
                 }
               })
 
