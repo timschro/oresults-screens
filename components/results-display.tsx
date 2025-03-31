@@ -359,7 +359,7 @@ export default function ResultsDisplay() {
                 console.log('Replaced "Finish" with "Zeit" in table header')
               }
             })
-
+/*
             // Find and process columns in tables
             const tables = iframeDocument.querySelectorAll("table")
             tables.forEach((table) => {
@@ -376,7 +376,7 @@ export default function ResultsDisplay() {
                 "Table headers found:",
                 Array.from(headers).map((h, i) => `${i}: "${h.textContent?.trim()}"`),
               )
-/*
+
               // First, identify columns that contain divs with class "results-team"
               const rows = table.querySelectorAll("tr")
               rows.forEach((row) => {
