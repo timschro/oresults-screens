@@ -376,7 +376,7 @@ export default function ResultsDisplay() {
                 "Table headers found:",
                 Array.from(headers).map((h, i) => `${i}: "${h.textContent?.trim()}"`),
               )
-
+/*
               // First, identify columns that contain divs with class "results-team"
               const rows = table.querySelectorAll("tr")
               rows.forEach((row) => {
@@ -476,7 +476,7 @@ export default function ResultsDisplay() {
                 )
               }
             })
-
+*/
             // Apply zoom factor to the content
             const bodyElement = iframeDocument.body
             if (bodyElement) {
