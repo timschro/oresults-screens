@@ -60,7 +60,7 @@ export const displayConfig: DisplayConfig = {
       ],
     },
     {
-      id: "einzel-4",
+      id: "einzel-5",
       name: "Einzel Feed",
       urls: [
         "https://oresults.eu/events/1707?class=H80&view=LiveFeed&popup=true",
