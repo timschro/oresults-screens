@@ -63,7 +63,7 @@ export const displayConfig: DisplayConfig = {
       id: "einzel-5",
       name: "Einzel Feed",
       urls: [
-        "https://oresults.eu/events/1707?class=H80&view=LiveFeed&popup=true",
+        "https://oresults.eu/events/1707?view=LiveFeed&popup=true",
       ],
     },
     {
@@ -121,7 +121,7 @@ export const displayConfig: DisplayConfig = {
       id: "staffel-5",
       name: "Staffel Feed",
       urls: [
-        "https://oresults.eu/events/1708?class=Offen+Team&leg=1&view=LiveFeed&popup=true",
+        "https://oresults.eu/events/1708?view=LiveFeed&popup=true",
       ],
     },
 
