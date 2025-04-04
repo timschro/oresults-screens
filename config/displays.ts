@@ -66,6 +66,65 @@ export const displayConfig: DisplayConfig = {
         "https://oresults.eu/events/1707?class=H80&view=LiveFeed&popup=true",
       ],
     },
+    {
+      id: "staffel-1",
+      name: "Strecke 1",
+      urls: [
+        "https://oresults.eu/events/1708?class=D%2FH-12+Team&leg=1&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH-16+Team&leg=1&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH19-+Team&leg=1&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH135+Team&leg=1&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH180+Team&leg=1&popup=true",
+        "https://oresults.eu/events/1708?class=Offen+Team&leg=1&popup=true",
+
+      ],
+    },
+    ,
+    {
+      id: "staffel-2",
+      name: "Strecke 2",
+      urls: [
+        "https://oresults.eu/events/1708?class=D%2FH-12+Team&leg=2&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH-16+Team&leg=2&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH19-+Team&leg=2&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH135+Team&leg=2&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH180+Team&leg=2&popup=true",
+        "https://oresults.eu/events/1708?class=Offen+Team&leg=2&popup=true",
+
+      ],
+    },
+    ,
+    {
+      id: "staffel-3",
+      name: "Strecke 3",
+      urls: [
+        "https://oresults.eu/events/1708?class=D%2FH-12+Team&leg=3&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH-16+Team&leg=3&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH19-+Team&leg=3&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH135+Team&leg=3&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH180+Team&leg=3&popup=true",
+        "https://oresults.eu/events/1708?class=Offen+Team&leg=3&popup=true",
+
+      ],
+    },
+    ,
+    {
+      id: "staffel-4",
+      name: "Strecke 4",
+      urls: [
+        "https://oresults.eu/events/1708?class=D%2FH-16+Team&leg=4&popup=true",
+        "https://oresults.eu/events/1708?class=D%2FH19-+Team&leg=4&popup=true",
+
+      ],
+    },
+    {
+      id: "staffel-5",
+      name: "Staffel Feed",
+      urls: [
+        "https://oresults.eu/events/1708?class=Offen+Team&leg=1&view=LiveFeed&popup=true",
+      ],
+    },
+
 
   ],
 }
