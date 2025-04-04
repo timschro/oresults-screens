@@ -79,7 +79,6 @@ export const displayConfig: DisplayConfig = {
 
       ],
     },
-    ,
     {
       id: "staffel-2",
       name: "Strecke 2",
@@ -93,7 +92,6 @@ export const displayConfig: DisplayConfig = {
 
       ],
     },
-    ,
     {
       id: "staffel-3",
       name: "Strecke 3",
@@ -107,7 +105,7 @@ export const displayConfig: DisplayConfig = {
 
       ],
     },
-    ,
+    
     {
       id: "staffel-4",
       name: "Strecke 4",
